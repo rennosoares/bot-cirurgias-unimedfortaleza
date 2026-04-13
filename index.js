@@ -69,7 +69,7 @@ async function extrairNome(imageBase64) {
   const resp = await axios.post(
     "https://api.anthropic.com/v1/messages",
     {
-      model: "claude-opus-4-5",
+      model: "claude-sonnet-4-6",
       max_tokens: 100,
       messages: [{
         role: "user",
@@ -101,7 +101,7 @@ async function extrairNomesPDF(pdfBase64) {
   const resp = await axios.post(
     "https://api.anthropic.com/v1/messages",
     {
-      model: "claude-opus-4-5",
+      model: "claude-sonnet-4-6",
       max_tokens: 2000,
       messages: [{
         role: "user",
