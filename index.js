@@ -58,74 +58,96 @@ async function baixarArquivo(fileId) {
   const filePath = data.result.file_path;
   const url = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${filePath}`;
   const resp = await axios.get(url, { responseType: "arraybuffer" });
-  return {
-    base64: Buffer.from(resp.data).toString("base64"),
-    filePath,
-  };
+  return Buffer.from(resp.data).toString("base64");
 }
 
 // ─── CLAUDE: EXTRAIR NOME DA ETIQUETA ────────────────────────────────────────
 async function extrairNome(imageBase64) {
-  const resp = await axios.post(
-    "https://api.anthropic.com/v1/messages",
-    {
-      model: "claude-sonnet-4-6",
-      max_tokens: 100,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: "image/jpeg", data: imageBase64 },
-          },
-          {
-            type: "text",
-            text: `Esta é uma etiqueta de plano de saúde.\nExtraia SOMENTE o nome completo do paciente.\nResponda apenas com o nome, sem mais nada.\nSe não encontrar, responda: NÃO IDENTIFICADO`,
-          },
-        ],
-      }],
-    },
-    {
-      headers: {
-        "x-api-key": ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
+  try {
+    const resp = await axios.post(
+      "https://api.anthropic.com/v1/messages",
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 100,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/jpeg", data: imageBase64 },
+            },
+            {
+              type: "text",
+              text: `Esta é uma etiqueta de plano de saúde.\nExtraia SOMENTE o nome completo do paciente.\nResponda apenas com o nome, sem mais nada.\nSe não encontrar, responda: NÃO IDENTIFICADO`,
+            },
+          ],
+        }],
       },
+      {
+        headers: {
+          "x-api-key": ANTHROPIC_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+      }
+    );
+
+    console.log("Resposta Claude:", JSON.stringify(resp.data));
+
+    if (!resp.data || !resp.data.content || !resp.data.content[0]) {
+      console.error("Resposta inesperada:", resp.data);
+      return "NÃO IDENTIFICADO";
     }
-  );
-  return resp.data.content[0].text.trim();
+
+    return resp.data.content[0].text.trim();
+
+  } catch (err) {
+    console.error("Erro Claude:", err?.response?.data || err.message);
+    return "NÃO IDENTIFICADO";
+  }
 }
 
 // ─── CLAUDE: EXTRAIR NOMES DO PDF ────────────────────────────────────────────
 async function extrairNomesPDF(pdfBase64) {
-  const resp = await axios.post(
-    "https://api.anthropic.com/v1/messages",
-    {
-      model: "claude-sonnet-4-6",
-      max_tokens: 2000,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-          },
-          {
-            type: "text",
-            text: `Este é um relatório de repasse do plano de saúde.\nListe TODOS os nomes de pacientes encontrados.\nResponda APENAS com os nomes, um por linha, sem numeração.`,
-          },
-        ],
-      }],
-    },
-    {
-      headers: {
-        "x-api-key": ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
+  try {
+    const resp = await axios.post(
+      "https://api.anthropic.com/v1/messages",
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 2000,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
+            },
+            {
+              type: "text",
+              text: `Este é um relatório de repasse do plano de saúde.\nListe TODOS os nomes de pacientes encontrados.\nResponda APENAS com os nomes, um por linha, sem numeração.`,
+            },
+          ],
+        }],
       },
+      {
+        headers: {
+          "x-api-key": ANTHROPIC_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+      }
+    );
+
+    if (!resp.data || !resp.data.content || !resp.data.content[0]) {
+      return [];
     }
-  );
-  return resp.data.content[0].text.trim().split("\n").map(n => n.trim()).filter(Boolean);
+
+    return resp.data.content[0].text.trim().split("\n").map(n => n.trim()).filter(Boolean);
+
+  } catch (err) {
+    console.error("Erro Claude PDF:", err?.response?.data || err.message);
+    return [];
+  }
 }
 
 // ─── CRUZAMENTO ───────────────────────────────────────────────────────────────
@@ -167,7 +189,7 @@ app.post("/webhook", async (req, res) => {
     if (msg.photo) {
       await enviar(chatId, "🔍 Analisando etiqueta...");
       const fileId = msg.photo[msg.photo.length - 1].file_id;
-      const { base64 } = await baixarArquivo(fileId);
+      const base64 = await baixarArquivo(fileId);
       const nome = await extrairNome(base64);
 
       if (nome === "NÃO IDENTIFICADO") {
@@ -189,7 +211,7 @@ app.post("/webhook", async (req, res) => {
       }
 
       await enviar(chatId, "📄 Lendo PDF do plano... aguarde.");
-      const { base64 } = await baixarArquivo(doc.file_id);
+      const base64 = await baixarArquivo(doc.file_id);
       const nomesPDF = await extrairNomesPDF(base64);
       const atendimentos = await listarAtendimentos();
 
