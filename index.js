@@ -140,8 +140,8 @@ for (const { nome, data } of atendimentos) {
 if (!nome) continue;
 const norm = normalizar(nome);
 const achou = normPDF.some(n => n.includes(norm) || norm.includes(n));
-if (achou) repassados.push(”\u2705 “ + nome + “ (” + data + “)”);
-else        ausentes.push(”\u274C “ + nome + “ (” + data + “)”);
+if (achou) repassados.push(”[OK] “ + nome + “ (” + data + “)”);
+else        ausentes.push(”[FALTA] “ + nome + “ (” + data + “)”);
 }
 return { repassados, ausentes };
 }
@@ -152,39 +152,39 @@ const msg = req.body?.message;
 if (!msg) return;
 const chatId = String(msg.chat.id);
 const texto  = msg.text?.trim() || “”;
-if (chatId !== SEU_CHAT_ID) { await enviar(chatId, “\u26D4 Acesso nao autorizado.”); return; }
+if (chatId !== SEU_CHAT_ID) { await enviar(chatId, “Acesso nao autorizado.”); return; }
 
 try {
 if (msg.photo) {
-await enviar(chatId, “\uD83D\uDD0D Analisando etiqueta…”);
+await enviar(chatId, “Analisando etiqueta…”);
 const fileId = msg.photo[msg.photo.length - 1].file_id;
 const base64 = await baixarArquivo(fileId);
 const dados  = await extrairDadosEtiqueta(base64);
-if (!dados.nome) { await enviar(chatId, “\u26A0\uFE0F Nao consegui identificar o nome. Tente uma foto mais nitida.”); return; }
+if (!dados.nome) { await enviar(chatId, “Nao consegui identificar o nome. Tente uma foto mais nitida.”); return; }
 const dataFinal  = dados.data || new Date().toLocaleDateString(“pt-BR”);
 const origemData = dados.data ? “Data da etiqueta” : “Data de hoje”;
 await salvarPaciente(dados.nome, dataFinal);
-await enviar(chatId, “\u2705 *Registrado!*\n\uD83D\uDC64 *” + dados.nome + “*\n\uD83D\uDCC5 “ + origemData + “: “ + dataFinal);
+await enviar(chatId, “*Registrado!*\nNome: *” + dados.nome + “*\n” + origemData + “: “ + dataFinal);
 return;
 }
 
 ```
 if (msg.document) {
   const doc = msg.document;
-  if (!doc.file_name?.toLowerCase().endsWith(".pdf")) { await enviar(chatId, "\u26A0\uFE0F Envie o relatorio em formato PDF."); return; }
-  await enviar(chatId, "\uD83D\uDCC4 Lendo PDF do plano... aguarde.");
+  if (!doc.file_name?.toLowerCase().endsWith(".pdf")) { await enviar(chatId, "Envie o relatorio em formato PDF."); return; }
+  await enviar(chatId, "Lendo PDF do plano... aguarde.");
   const base64       = await baixarArquivo(doc.file_id);
   const nomesPDF     = await extrairNomesPDF(base64);
   const atendimentos = await listarAtendimentos();
-  if (atendimentos.length === 0) { await enviar(chatId, "\u26A0\uFE0F Nenhum atendimento registrado ainda."); return; }
+  if (atendimentos.length === 0) { await enviar(chatId, "Nenhum atendimento registrado ainda."); return; }
   const { repassados, ausentes } = cruzar(atendimentos, nomesPDF);
   const total = repassados.length + ausentes.length;
-  let relatorio = "\uD83D\uDCCA *Relatorio do Mes*\n\n";
+  let relatorio = "*Relatorio do Mes*\n\n";
   relatorio += "Total atendido: " + total + "\n";
-  relatorio += "\u2705 Repassados: " + repassados.length + "\n";
-  relatorio += "\u274C Nao encontrados: " + ausentes.length + "\n";
+  relatorio += "Repassados: " + repassados.length + "\n";
+  relatorio += "Nao encontrados: " + ausentes.length + "\n";
   if (ausentes.length > 0) relatorio += "\n*Ausentes no plano:*\n" + ausentes.join("\n");
-  else relatorio += "\n\uD83C\uDF89 Todos repassados!";
+  else relatorio += "\nTodos repassados!";
   await enviar(chatId, relatorio);
   return;
 }
@@ -193,54 +193,51 @@ const cmd = texto.toLowerCase().trim();
 
 if (cmd === "resumo") {
   const atendimentos = await listarAtendimentos();
-  await enviar(chatId, "\uD83D\uDCCB *Resumo*\nTotal registrado: *" + atendimentos.length + " pacientes*");
+  await enviar(chatId, "*Resumo*\nTotal registrado: *" + atendimentos.length + " pacientes*");
 
 } else if (cmd === "lista") {
   const atendimentos = await listarAtendimentos();
   if (atendimentos.length === 0) { await enviar(chatId, "Nenhum paciente registrado ainda."); return; }
-
-  let lista = "\uD83D\uDCCB *Pacientes registrados*\n\n";
+  let lista = "*Pacientes registrados*\n\n";
   atendimentos.forEach((a, i) => {
     lista += (i + 1) + ". " + a.nome + " _(" + a.data + ")_\n";
   });
   lista += "\nTotal: *" + atendimentos.length + "*\n\n";
-  lista += "\uD83D\uDDD1\uFE0F *Para remover:*\n";
+  lista += "*Para remover:*\n";
   atendimentos.forEach((a, i) => {
-    // Pega apenas o primeiro nome para ficar compacto
     const primeiroNome = a.nome.split(" ")[0];
-    lista += "apagar " + (i + 1) + "  \u2192  " + primeiroNome + "\n";
+    lista += "apagar " + (i + 1) + "  ->  " + primeiroNome + "\n";
   });
-
   await enviar(chatId, lista);
 
 } else if (cmd.startsWith("apagar ")) {
   const param = texto.substring(7).trim();
   const numero = parseInt(param);
   const atendimentos = await listarAtendimentos();
-  if (atendimentos.length === 0) { await enviar(chatId, "\u26A0\uFE0F Nenhum paciente registrado."); return; }
+  if (atendimentos.length === 0) { await enviar(chatId, "Nenhum paciente registrado."); return; }
 
   if (!isNaN(numero)) {
     if (numero < 1 || numero > atendimentos.length) {
-      await enviar(chatId, "\u26A0\uFE0F Numero invalido. A lista tem *" + atendimentos.length + "* pacientes.\nEnvie *lista* para ver.");
+      await enviar(chatId, "Numero invalido. A lista tem *" + atendimentos.length + "* pacientes.\nEnvie *lista* para ver.");
       return;
     }
     const paciente = atendimentos[numero - 1];
     await apagarPorLinha(paciente.linhaSheet);
-    await enviar(chatId, "\uD83D\uDDD1\uFE0F *" + paciente.nome + "* removido com sucesso.");
+    await enviar(chatId, "*" + paciente.nome + "* removido com sucesso.");
   } else {
     const normBusca  = normalizar(param);
     const encontrado = atendimentos.find(a => normalizar(a.nome).includes(normBusca));
-    if (!encontrado) { await enviar(chatId, "\u26A0\uFE0F Nao encontrei *" + param + "*.\nEnvie *lista* para ver os pacientes."); return; }
+    if (!encontrado) { await enviar(chatId, "Nao encontrei *" + param + "*.\nEnvie *lista* para ver os pacientes."); return; }
     await apagarPorLinha(encontrado.linhaSheet);
-    await enviar(chatId, "\uD83D\uDDD1\uFE0F *" + encontrado.nome + "* removido com sucesso.");
+    await enviar(chatId, "*" + encontrado.nome + "* removido com sucesso.");
   }
 
 } else if (cmd === "ajuda") {
   await enviar(chatId,
-    "\uD83E\uDD16 *Bot de Atendimentos*\n\n" +
-    "\uD83D\uDCF8 *Foto da etiqueta* -> registra o paciente\n" +
-    "\uD83D\uDCC4 *PDF do plano* -> gera relatorio\n\n" +
-    "\uD83D\uDCAC *Comandos:*\n" +
+    "*Bot de Atendimentos*\n\n" +
+    "Foto da etiqueta -> registra o paciente\n" +
+    "PDF do plano -> gera relatorio\n\n" +
+    "*Comandos:*\n" +
     "- *resumo* -> total registrado\n" +
     "- *lista* -> pacientes numerados com opcao de remover\n" +
     "- *apagar 1* -> remove o paciente nr 1\n" +
@@ -254,7 +251,7 @@ if (cmd === "resumo") {
 
 } catch (err) {
 console.error(err?.response?.data || err.message);
-await enviar(chatId, “\u26A0\uFE0F Ocorreu um erro. Tente novamente.”);
+await enviar(chatId, “Ocorreu um erro. Tente novamente.”);
 }
 });
 
